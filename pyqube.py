@@ -25,10 +25,10 @@ class Schema(object):
         return self.views[view]
         
     def relation(self, view, related):
-        if self.views.has_key((view, related)):
-            return self.views[(view, related)]
-        elif self.views.has_key((related, view)):
-            return self.views[(related, view)]
+        if self.rels.has_key((view, related)):
+            return self.rels[(view, related)]
+        elif self.rels.has_key((related, view)):
+            return self.rels[(related, view)]
         return None
 
 Alias = collections.namedtuple('Alias', ['view', 'alias'])
@@ -92,15 +92,16 @@ class Node(object):
         if self.relation:
             s += ' on ' + self.relation.toString(parentAlias, self.av)
         for ch in self.children:
-            s += ' join ' + ch.toString(self.av)
+            s += '\n join ' + ch.toString(self.av)
         return s
             
 class Tree(object):
 
-    def __init__(self):
+    def __init__(self, schema):
         self.root = None
         self.viewNode = {}
         self.idx = 0
+        self.schema = schema
         
     def addJoin(self, view, rel=None):
         if not self.root:
@@ -116,6 +117,22 @@ class Tree(object):
         elif not self.viewNode.has_key(view):
             raise Exception('Undefined relation')
         self.idx+=1
+    
+    def addJoin2(self, view):
+        if not self.root:
+            self.root = Node(Alias(view, 'a'+str(self.idx)))
+            self.viewNode[view] = self.root
+        elif not self.viewNode.has_key(view):
+            related = self.schema.relatedViews(view)
+            for v in related:
+                if self.viewNode.has_key(v):
+                    relation = self.schema.relation(v, view)
+                    nn = self.viewNode[v].addJoin(Alias(view, 'a'+str(self.idx)), relation)
+                    self.viewNode[view] = nn
+                    break
+            else:
+                raise Exception('No related view in tree')
+        self.idx += 1
         
     def createString(self):
         return self.root.toString()
@@ -166,7 +183,7 @@ class SelectAttr(ViewAttr):
         return ViewAttr.__str__(self)
         
     def __repr__(self):
-        str(self)
+        return str(self)
     
     def _prepareStr(self, alias):
         base = ViewAttr._prepareStr(self, alias)
@@ -243,19 +260,19 @@ def aggrCount(attr):
         
 class QueryBuilder(object):
 
-    def __init__(self):
+    def __init__(self, schema):
         self.attrs = []
-        self.tree = Tree()
+        self.tree = Tree(schema)
         
     def select(self, selectAttr, relation=None):
-        self.tree.addJoin(selectAttr.view, relation)
+        self.tree.addJoin2(selectAttr.view)
         self.attrs.append(selectAttr)
         
     def _validate(self):
         groupSet = frozenset([ a for a in self.attrs if a.groupBy and a.visible])
         aggrSet = frozenset([ a for a in self.attrs if a.aggregate and a.visible])
         visibleSet = frozenset([a for a in self.attrs if a.visible])
-        if not (aggrSet.isdisjoint(groupSet) and visibleSet == (groupSet | aggrSet)):
+        if (groupSet or aggrSet) and not (aggrSet.isdisjoint(groupSet) and visibleSet == (groupSet | aggrSet)):
             print visibleSet
             print groupSet
             print aggrSet
@@ -280,13 +297,13 @@ class QueryBuilder(object):
             if a.condition:
                 whereList.append(an+' '+str(a.condition))
         query += ', '.join(attrList)
-        query += ' from '+self.tree.createString()
+        query += '\n from '+self.tree.createString()
         if whereList:
-            query += ' where '+ ' and '.join(whereList)
+            query += '\n where '+ ' and '.join(whereList)
         if groupList:
-            query += ' group by '+ ', '.join(groupList)
+            query += '\n group by '+ ', '.join(groupList)
         if orderList:
-            query += ' order by '+ ', '.join(orderList)
+            query += '\n order by '+ ', '.join(orderList)
         return query
         
     def build(self):
@@ -294,47 +311,73 @@ class QueryBuilder(object):
         
     def createView(self, name):
         query = self.build()
-        return View(query, name, [a.realName() for a in self.attrs if a.visible])
-
+        return View('('+query+')', name, [a.realName() for a in self.attrs if a.visible])
 
 def main():
-    vboo = View('books', 'Books', ['title', 'author', 'year', 'publisher', 'category'])
-    vpub = View('publishers', 'Publishers', ['id', 'name', 'city'])
-    catv = View('categories', 'Categories', ['id', 'category_name'])
-    citv = View('cities', 'Cities', ['id', 'city_name'])
+    booksView = View('books', 'Books', ['title', 'author', 'year', 'publisher', 'category'])
+    publishersView = View('publishers', 'Publishers', ['id', 'name', 'city'])
+    categoriesView = View('categories', 'Categories', ['id', 'category_name'])
+    citiesView = View('cities', 'Cities', ['id', 'city_name'])
     
+    bookPublisher = Relation(
+                            [AttrPair
+                                (booksView.attribute('publisher'), 
+                                            publishersView.attribute('id')
+                                )
+                            ]
+                            )
+    publisherCity = Relation(
+                            [AttrPair
+                                (
+                                    publishersView.attribute('city'), 
+                                    citiesView.attribute('id')
+                                )
+                            ]
+                            )
+    bookCategory = Relation(
+                           [AttrPair
+                                (
+                                    booksView.attribute('category'), 
+                                    categoriesView.attribute('id')
+                                )
+                            ]
+                            )
     schema = Schema()
-    schema.addView(vboo)
-    rbp = Relation([AttrPair(vboo.attribute('publisher'), vpub.attribute('id'))])
-    schema.addView(vpub, rbp)
+    schema.addView(booksView)
+    schema.addView(publishersView, bookPublisher)
+    schema.addView(categoriesView, bookCategory)
+    schema.addView(citiesView, publisherCity)
     
-    rpc = Relation([AttrPair(vpub.attribute('city'), citv.attribute('id'))])
-    schema.addView(citv, rpc)
+    subBuilder = QueryBuilder(schema)
+    authorAttr = booksView.attribute('author').select(aggregate=aggrCount, altName='Authors')
+    subBuilder.select(authorAttr)
     
-    rbc = Relation([AttrPair(vboo.attribute('category'), catv.attribute('id'))])
-    schema.addView(catv, rbc)
+    categoryAttr = categoriesView.attribute('category_name').select(groupBy=True)
+    subBuilder.select(categoryAttr)
     
-    builder = QueryBuilder()
-    autAttr = vboo.attribute('author').select(aggregate=aggrCount, altName='Authors')
-    builder.select(autAttr)
+    yearAttr = booksView.attribute('year').select(condition=incond(['2012','2013']), orderBy=True, groupBy=True)
+    subBuilder.select(yearAttr)
     
-    yearAttr = vboo.attribute('year').select(condition=incond(['2012','2013']), orderBy=True, groupBy=True)
-    builder.select(yearAttr)
-    #titleAttr = vboo.attribute('title').select()
-    #builder.select(titleAttr)
+    publisherIdAttr = booksView.attribute('publisher').select(groupBy=True)
+    subBuilder.select(publisherIdAttr)
     
-    catAttr = catv.attribute('category_name').select(groupBy=True)
-    builder.select(catAttr, rbc)
-    builder.select(catv.attribute('id').select(visible=False, orderBy=True))
-    pubAttr = vpub.attribute('name').select(visible=False)
-    builder.select(pubAttr, rbp)
+    subView = subBuilder.createView('AuthorsView')
     
-    citAttr = citv.attribute('city_name').select(condition=equal('Wolsztyn'), visible=False)
-    builder.select(citAttr, rpc)
-    
-    
-
+    authorsPublisher = Relation(
+                                [AttrPair
+                                    (
+                                        subView.attribute('publisher'),
+                                        publishersView.attribute('id')
+                                    )
+                                ]
+                                )
+    schema.addView(subView, authorsPublisher)
+ 
+    builder = QueryBuilder(schema)
+    builder.select(subView.attribute('Authors').select())
+    builder.select(publishersView.attribute('name').select())
     
     print builder.build()
+    
     
 main()
