@@ -1,4 +1,4 @@
-# schema.py
+# pyqube.py
 
 import collections
         
@@ -127,18 +127,26 @@ class ViewAttr(object):
 
     def __init__(self, name, view):
         self.name = name
-        self.view = view  
+        self.view = view 
         
-    def select(self, visible=True, orderBy=False, groupBy=False, condition=None):
+    def select(self, visible=True, orderBy=False, groupBy=False, condition=None, aggregate=None, altName=None):
         sa = SelectAttr(self.name, self.view)
         sa.visible = visible
         sa.orderBy = orderBy
         sa.groupBy = groupBy
         sa.condition = condition
+        sa.aggregate = aggregate
+        sa.altName = altName
         return sa
         
     def __str__(self):
         return '%s.%s'%(self.view.name, self.name)
+    
+    def _prepareStr(self, alias):
+        return '%s.%s' % (alias, self.name)
+            
+    def toString(self, alias):
+        return self._prepareStr(alias)
         
         
 class SelectAttr(ViewAttr):
@@ -149,7 +157,29 @@ class SelectAttr(ViewAttr):
         self.orderBy = False
         self.groupBy = False
         self.condition = None
-                   
+        self.aggregate=None
+        self.altName = None
+        
+    def __str__(self):
+        if self.aggregate:
+            return str(self.aggregate(ViewAttr.__str__(self)))
+        return ViewAttr.__str__(self)
+        
+    def __repr__(self):
+        str(self)
+    
+    def _prepareStr(self, alias):
+        base = ViewAttr._prepareStr(self, alias)
+        if self.aggregate:
+            base = str(self.aggregate(base))
+        if self.altName:
+            base += ' as '+self.altName
+        return base
+        
+    def realName(self):
+        if self.altName:
+            return self.altName
+        return self.name
         
 class View(object):
 
@@ -171,21 +201,45 @@ class View(object):
 
 class Condition(object):
 
-    def __init__(self, ctype, value):
-        self.ctype = ctype
+    def __init__(self, fmt, value=None):
+        self.fmt = fmt
         self.value = value
         
     def __str__(self):
-        return self.ctype+' '+self.value
-        
-def equal(value):
-    return Condition('=', value)        
+        if self.value:
+            return self.fmt % self.value
+        else:
+            return self.fmt % '?'
+            
+class Aggregate(object):
 
-def greater(value):
-    return Condition('>', value)
+    def __init__(self, name, attr):
+        self.name = name
+        self.attr = attr
+        
+    def __str__(self):
+        return '%s( %s )' % (self.name, self.attr)
+        
+def equal(value=None):
+    return Condition('= %s', value)        
+
+def greater(value=None):
+    return Condition('> %s', value)
     
-def lesser(value):
-    return Condition('<', value)
+def lesser(value=None):
+    return Condition('< %s', value)
+
+def incond(value=[]):
+    return Condition(' in ( %s )', ','.join(value))
+
+def avg(attr):
+    return Aggregate('AVG', attr)
+    
+def aggrSum(attr):
+    return Aggreget('SUM', attr)
+    
+def aggrCount(attr):
+    return Aggregate('COUNT', attr)
         
 class QueryBuilder(object):
 
@@ -197,38 +251,51 @@ class QueryBuilder(object):
         self.tree.addJoin(selectAttr.view, relation)
         self.attrs.append(selectAttr)
         
-    def _joins(self):
+    def _validate(self):
+        groupSet = frozenset([ a for a in self.attrs if a.groupBy and a.visible])
+        aggrSet = frozenset([ a for a in self.attrs if a.aggregate and a.visible])
+        visibleSet = frozenset([a for a in self.attrs if a.visible])
+        if not (aggrSet.isdisjoint(groupSet) and visibleSet == (groupSet | aggrSet)):
+            print visibleSet
+            print groupSet
+            print aggrSet
+            raise Exception('aggregate and group by') 
+        
+    def _joins2(self):
+        self._validate()
         query = 'select '
-        attrList = ''
-        orderList = ''
-        groupList = ''
-        whereList = ''
+        attrList = []
+        orderList = []
+        groupList = []
+        whereList = []
         for a in self.attrs:        
             alias = self.tree.getAlias(a.view)
-            an = alias+'.'+a.name
+            an = a.toString(alias)
             if a.visible:
-                attrList += ','+an
+                attrList.append(an)
             if a.orderBy:
-                orderList += ','+an
+                orderList.append(an)
             if a.groupBy:
-                groupList += ','+an
+                groupList.append(an)
             if a.condition:
-                if whereList == '':
-                    whereList += an+' '+str(a.condition)
-                else:
-                    whereList += ' and '+an+' '+str(a.condition)
-        query += attrList[1:]
+                whereList.append(an+' '+str(a.condition))
+        query += ', '.join(attrList)
         query += ' from '+self.tree.createString()
         if whereList:
-            query += ' where '+whereList
+            query += ' where '+ ' and '.join(whereList)
         if groupList:
-            query += ' group by'+groupList[1:]
+            query += ' group by '+ ', '.join(groupList)
         if orderList:
-            query += ' order by '+orderList[1:]
+            query += ' order by '+ ', '.join(orderList)
         return query
         
     def build(self):
-        return self._joins()
+        return self._joins2()
+        
+    def createView(self, name):
+        query = self.build()
+        return View(query, name, [a.realName() for a in self.attrs if a.visible])
+
 
 def main():
     vboo = View('books', 'Books', ['title', 'author', 'year', 'publisher', 'category'])
@@ -248,21 +315,25 @@ def main():
     schema.addView(catv, rbc)
     
     builder = QueryBuilder()
-    titleAttr = vboo.attribute('title').select()
-    builder.select(titleAttr)
+    autAttr = vboo.attribute('author').select(aggregate=aggrCount, altName='Authors')
+    builder.select(autAttr)
     
-    catAttr = catv.attribute('category_name').select()
+    yearAttr = vboo.attribute('year').select(condition=incond(['2012','2013']), orderBy=True, groupBy=True)
+    builder.select(yearAttr)
+    #titleAttr = vboo.attribute('title').select()
+    #builder.select(titleAttr)
+    
+    catAttr = catv.attribute('category_name').select(groupBy=True)
     builder.select(catAttr, rbc)
     builder.select(catv.attribute('id').select(visible=False, orderBy=True))
-    pubAttr = vpub.attribute('name').select()
+    pubAttr = vpub.attribute('name').select(visible=False)
     builder.select(pubAttr, rbp)
     
-    citAttr = citv.attribute('city_name').select()
+    citAttr = citv.attribute('city_name').select(condition=equal('Wolsztyn'), visible=False)
     builder.select(citAttr, rpc)
     
     
-    autAttr = vboo.attribute('author').select()
-    builder.select(autAttr)
+
     
     print builder.build()
     
