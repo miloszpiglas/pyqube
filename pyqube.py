@@ -1,88 +1,33 @@
 # pyqube.py
 
 import collections
-        
-class Schema(object):
 
-    def __init__(self):
-        self.views = {} 
-        self.rels = {}
-        
-    def addView(self, view, relation=None):
-        if not relation:
-            self.views[view] = []
-        else:
-            rv = relation.related(view).view
-            if self.views.has_key(rv):
-                self.views[view] = [rv]
-                self.views[rv].append(view)
-                self.rels[(view, rv)] = relation
-                self.rels[(rv, view)] = relation
-            else:
-                raise Exception('no related views')
-                
-    def relatedViews(self, view):
-        return self.views[view]
-        
-    def relation(self, view, related):
-        if self.rels.has_key((view, related)):
-            return self.rels[(view, related)]
-        elif self.rels.has_key((related, view)):
-            return self.rels[(related, view)]
-        return None
+from views import View, Condition, Aggregate        
 
 Alias = collections.namedtuple('Alias', ['view', 'alias'])
-        
-class AttrPair(object):
-
-    def __init__(self, leftAttr, rightAttr):
-        self.left = leftAttr
-        self.right = rightAttr
-        
-    def related(self, view):
-        if self.left.view == view:
-            return self.right
-        elif self.right.view == view:
-            return self.left
-        else:
-            return None
-    
-    def attribute(self, view):
-        if view == self.left.view:
-            return self.left
-        elif view == self.right.view:
-            return self.right
-        else:
-            raise Exception('Views do not match')
             
-    def toString(self, vleft, vright):
-        a = vleft.alias+'.'+self.attribute(vleft.view).name
-        b = vright.alias+'.'+self.attribute(vright.view).name
-        return a+' = '+b
-            
-            
-class Relation(object):
-
-    def __init__(self, pairs):
-        self.pairs = pairs
-        
-    def related(self, view):
-        return self.pairs[0].related(view)
-        
-    def toString(self, vleft, vright):
-        return ' AND '.join([p.toString(vleft, vright) for p in self.pairs])
-        
-    def __str__(self):
-        return '%s %s' %(self.pairs[0].left, self.pairs[0].right)
         
 class Node(object):
-
+    '''
+        Tree's node. Represents single view. Each node might have
+        parent and children. 
+    '''
+    
     def __init__(self, aliasView, relation=None):
+        '''
+            Initialise node. 
+            params:
+                - aliasView: pair of view and its alias (see: named tuple Alias)
+                - relation: defines relation of this view to its parent
+        '''
         self.av = aliasView
         self.children = []
         self.relation = relation
         
     def addJoin(self, aliasView, relation):
+        '''
+            Adds join to this node. 
+        '''
         nn = Node(aliasView, relation)
         self.children.append(nn)
         return nn
@@ -96,29 +41,25 @@ class Node(object):
         return s
             
 class Tree(object):
-
+    '''
+        Defines order of joining views in single select query. Each
+        node of tree represents single view used in query. All children
+        of node are views, which are directly joined with node.
+    '''
+    
     def __init__(self, schema):
         self.root = None
         self.viewNode = {}
         self.idx = 0
         self.schema = schema
-        
-    def addJoin(self, view, rel=None):
-        if not self.root:
-            self.root = Node(Alias(view, 'a'+str(self.idx)))
-            self.viewNode[view] = self.root
-        elif rel and not self.viewNode.has_key(view):
-            rv = rel.related(view).view
-            if self.viewNode.has_key(rv):
-                nn = self.viewNode[rv].addJoin(Alias(view, 'a'+str(self.idx)), rel)
-                self.viewNode[view] = nn
-            else:
-                raise Exception('No related view in tree')
-        elif not self.viewNode.has_key(view):
-            raise Exception('Undefined relation')
-        self.idx+=1
     
-    def addJoin2(self, view):
+    def addJoin(self, view):
+        '''
+            Add view to join. If it is first view added to tree, it becomes
+            root node. If tree has already root, proper view is find for passed one
+            and join is created. 
+            If passed view has no related views in tree, exception is raised.
+        '''
         if not self.root:
             self.root = Node(Alias(view, 'a'+str(self.idx)))
             self.viewNode[view] = self.root
@@ -135,107 +76,17 @@ class Tree(object):
         self.idx += 1
         
     def createString(self):
+        '''
+            Uses tree to create full 'FROM' clause.
+        '''
         return self.root.toString()
         
     def getAlias(self, view):
+        '''
+            Finds alias for view.
+        '''
         return self.viewNode[view].av.alias
         
-class ViewAttr(object):
-
-    def __init__(self, name, view):
-        self.name = name
-        self.view = view 
-        
-    def select(self, visible=True, orderBy=False, groupBy=False, condition=None, aggregate=None, altName=None):
-        sa = SelectAttr(self.name, self.view)
-        sa.visible = visible
-        sa.orderBy = orderBy
-        sa.groupBy = groupBy
-        sa.condition = condition
-        sa.aggregate = aggregate
-        sa.altName = altName
-        return sa
-        
-    def __str__(self):
-        return '%s.%s'%(self.view.name, self.name)
-    
-    def _prepareStr(self, alias):
-        return '%s.%s' % (alias, self.name)
-            
-    def toString(self, alias):
-        return self._prepareStr(alias)
-        
-        
-class SelectAttr(ViewAttr):
-
-    def __init__(self, name, view):
-        ViewAttr.__init__(self, name, view)
-        self.visible = True
-        self.orderBy = False
-        self.groupBy = False
-        self.condition = None
-        self.aggregate=None
-        self.altName = None
-        
-    def __str__(self):
-        if self.aggregate:
-            return str(self.aggregate(ViewAttr.__str__(self)))
-        return ViewAttr.__str__(self)
-        
-    def __repr__(self):
-        return str(self)
-    
-    def _prepareStr(self, alias):
-        base = ViewAttr._prepareStr(self, alias)
-        if self.aggregate:
-            base = str(self.aggregate(base))
-        if self.altName:
-            base += ' as '+self.altName
-        return base
-        
-    def realName(self):
-        if self.altName:
-            return self.altName
-        return self.name
-        
-class View(object):
-
-    def __init__(self, src, name, attrNames):
-        self.src = src
-        self.attrs = {}
-        for n in attrNames:
-            self.attrs[n] = ViewAttr(n, self)
-        self.name = name    
-    
-    def attribute(self, name):
-        return self.attrs[name]
-        
-    def __str__(self):
-        return self.src
-        
-    def __repr__(self):
-        return self.src
-
-class Condition(object):
-
-    def __init__(self, fmt, value=None):
-        self.fmt = fmt
-        self.value = value
-        
-    def __str__(self):
-        if self.value:
-            return self.fmt % self.value
-        else:
-            return self.fmt % '?'
-            
-class Aggregate(object):
-
-    def __init__(self, name, attr):
-        self.name = name
-        self.attr = attr
-        
-    def __str__(self):
-        return '%s( %s )' % (self.name, self.attr)
         
 def equal(value=None):
     return Condition('= %s', value)        
@@ -259,13 +110,20 @@ def aggrCount(attr):
     return Aggregate('COUNT', attr)
         
 class QueryBuilder(object):
-
+    '''
+        Uses selected view attributes to build SELECT query.
+    '''
+    
     def __init__(self, schema):
         self.attrs = []
         self.tree = Tree(schema)
         
-    def select(self, selectAttr, relation=None):
-        self.tree.addJoin2(selectAttr.view)
+    def select(self, selectAttr):
+        '''
+            Add attribute to selected list. Also prepares
+            JOINs between views.
+        '''
+        self.tree.addJoin(selectAttr.view)
         self.attrs.append(selectAttr)
         
     def _validate(self):
@@ -278,7 +136,7 @@ class QueryBuilder(object):
             print aggrSet
             raise Exception('aggregate and group by') 
         
-    def _joins2(self):
+    def _joins(self):
         self._validate()
         query = 'select '
         attrList = []
@@ -307,77 +165,15 @@ class QueryBuilder(object):
         return query
         
     def build(self):
-        return self._joins2()
+        '''
+            Builds query string
+        '''
+        return self._joins()
         
     def createView(self, name):
+        '''
+            Creates new view representing query, which might be used
+            in next queries.
+        '''
         query = self.build()
         return View('('+query+')', name, [a.realName() for a in self.attrs if a.visible])
-
-def main():
-    booksView = View('books', 'Books', ['title', 'author', 'year', 'publisher', 'category'])
-    publishersView = View('publishers', 'Publishers', ['id', 'name', 'city'])
-    categoriesView = View('categories', 'Categories', ['id', 'category_name'])
-    citiesView = View('cities', 'Cities', ['id', 'city_name'])
-    
-    bookPublisher = Relation(
-                            [AttrPair
-                                (booksView.attribute('publisher'), 
-                                            publishersView.attribute('id')
-                                )
-                            ]
-                            )
-    publisherCity = Relation(
-                            [AttrPair
-                                (
-                                    publishersView.attribute('city'), 
-                                    citiesView.attribute('id')
-                                )
-                            ]
-                            )
-    bookCategory = Relation(
-                           [AttrPair
-                                (
-                                    booksView.attribute('category'), 
-                                    categoriesView.attribute('id')
-                                )
-                            ]
-                            )
-    schema = Schema()
-    schema.addView(booksView)
-    schema.addView(publishersView, bookPublisher)
-    schema.addView(categoriesView, bookCategory)
-    schema.addView(citiesView, publisherCity)
-    
-    subBuilder = QueryBuilder(schema)
-    authorAttr = booksView.attribute('author').select(aggregate=aggrCount, altName='Authors')
-    subBuilder.select(authorAttr)
-    
-    categoryAttr = categoriesView.attribute('category_name').select(groupBy=True)
-    subBuilder.select(categoryAttr)
-    
-    yearAttr = booksView.attribute('year').select(condition=incond(['2012','2013']), orderBy=True, groupBy=True)
-    subBuilder.select(yearAttr)
-    
-    publisherIdAttr = booksView.attribute('publisher').select(groupBy=True)
-    subBuilder.select(publisherIdAttr)
-    
-    subView = subBuilder.createView('AuthorsView')
-    
-    authorsPublisher = Relation(
-                                [AttrPair
-                                    (
-                                        subView.attribute('publisher'),
-                                        publishersView.attribute('id')
-                                    )
-                                ]
-                                )
-    schema.addView(subView, authorsPublisher)
- 
-    builder = QueryBuilder(schema)
-    builder.select(subView.attribute('Authors').select())
-    builder.select(publishersView.attribute('name').select())
-    
-    print builder.build()
-    
-    
-main()
