@@ -1,5 +1,5 @@
 from views import View, Relation, AttrPair, Schema
-from pyqube import QueryBuilder, aggrCount, incond
+from pyqube import QueryBuilder, aggrCount, lesser, greater
 
 def main():
     booksView = View('books', 'Books', ['title', 'author', 'year', 'publisher', 'category'])
@@ -43,8 +43,11 @@ def main():
     categoryAttr = categoriesView.attribute('category_name').select(groupBy=True)
     subBuilder.select(categoryAttr)
     
-    yearAttr = booksView.attribute('year').select(condition=incond(['2012','2013']), orderBy=True, groupBy=True)
+    yearAttr = booksView.attribute('year').select(condition=lesser(), orderBy=True, groupBy=True)
     subBuilder.select(yearAttr)
+    
+    year2Attr = booksView.attribute('year').select(visible=False, condition=greater())
+    subBuilder.select(year2Attr)
     
     publisherIdAttr = booksView.attribute('publisher').select(groupBy=True)
     subBuilder.select(publisherIdAttr)
