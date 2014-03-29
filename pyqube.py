@@ -136,7 +136,7 @@ class QueryBuilder(object):
             print aggrSet
             raise Exception('aggregate and group by') 
         
-    def _joins(self):
+    def _joins(self, addWhere=True):
         self._validate()
         query = 'select '
         attrList = []
@@ -152,7 +152,7 @@ class QueryBuilder(object):
                 orderList.append(an)
             if a.groupBy:
                 groupList.append(an)
-            if a.condition:
+            if a.condition and addWhere:
                 whereList.append(an+' '+str(a.condition))
         query += ', '.join(attrList)
         query += '\n from '+self.tree.createString()
@@ -175,5 +175,5 @@ class QueryBuilder(object):
             Creates new view representing query, which might be used
             in next queries.
         '''
-        query = self.build()
+        query = self._joins(False)
         return View('('+query+')', name, [a.realName() for a in self.attrs if a.visible])

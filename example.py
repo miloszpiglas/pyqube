@@ -65,7 +65,7 @@ def main():
     schema.addView(subView, authorsPublisher)
  
     builder = QueryBuilder(schema)
-    builder.select(subView.attribute('Authors').select())
+    builder.select(subView.attribute('Authors').select( condition=greater()) )
     builder.select(publishersView.attribute('name').select())
     
     print builder.build()
