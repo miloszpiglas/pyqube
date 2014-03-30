@@ -121,8 +121,21 @@ class SelectAttr(ViewAttr):
         if self.altName:
             return self.altName
         return self.name
+
+class IView(object):
+
+    def __init__(self, name):
+        self.name = name
         
-class View(object):
+    def attribute(self, name):
+        raise Exception('Not implemented')
+    
+    @property    
+    def source(self):
+        raise Exception('Not implemented')
+    
+        
+class View(IView):
     '''
         Represents table in database or predefined query,
         which might be used as subquery.
@@ -136,23 +149,27 @@ class View(object):
                 - name: humand friendly name of view.
                 - attrNames: names of attributes.
         '''
-        self.src = src
+        IView.__init__(self, name)
+        self._src = src
         self.attrs = {}
         for n in attrNames:
             self.attrs[n] = ViewAttr(n, self)
-        self.name = name    
     
     def attribute(self, name):
         '''
             Finds attribute in view by passed name.
         '''
         return self.attrs[name]
+    
+    @property
+    def source(self):
+        return self._src
         
     def __str__(self):
-        return self.src
+        return self._src
         
     def __repr__(self):
-        return self.src
+        return self._src
 
 class Condition(object):
     '''

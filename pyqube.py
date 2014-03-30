@@ -2,7 +2,7 @@
 
 import collections
 
-from views import View, Condition, Aggregate        
+from views import *   
 
 Alias = collections.namedtuple('Alias', ['view', 'alias'])
             
@@ -33,7 +33,7 @@ class Node(object):
         return nn
     
     def toString(self, parentAlias=None):
-        s = self.av.view.src+' '+self.av.alias
+        s = self.av.view.source+' '+self.av.alias
         if self.relation:
             s += ' on ' + self.relation.toString(parentAlias, self.av)
         for ch in self.children:
@@ -86,20 +86,26 @@ class Tree(object):
             Finds alias for view.
         '''
         return self.viewNode[view].av.alias
-        
-        
-def equal(value=None):
-    return Condition('= %s', value)        
-
-def greater(value=None):
-    return Condition('> %s', value)
     
-def lesser(value=None):
-    return Condition('< %s', value)
+def single(param, index, sign):    
+    cs = '%s %s :param%d' % (param, sign, index)
+    return cs
+    
+def EQ(param, index):
+    return single(param, index, '=')
 
-def incond(value=[]):
-    return Condition(' in ( %s )', ','.join(value))
-
+def GT(param, index):
+    return single(param, index, '>')
+    
+def GE(param, index):
+    return single(param, index, '>=')
+    
+def LT(param, index):
+    return single(param, index, '<')
+    
+def LE(param, index):
+    return single(param, index, '<=')     
+    
 def avg(attr):
     return Aggregate('AVG', attr)
     
@@ -108,6 +114,60 @@ def aggrSum(attr):
     
 def aggrCount(attr):
     return Aggregate('COUNT', attr)
+    
+   
+class QueryView(IView):
+
+    def __init__(self, name, attrs, tree):
+        IView.__init__(self, name)
+        self.tree = tree
+        self.attrs = attrs
+        
+    def _build(self, addWhere=True):
+        query = 'SELECT '
+        attrList = []
+        orderList = []
+        groupList = []
+        whereList = []
+        cc = 1
+        for a in self.attrs:        
+            alias = self.tree.getAlias(a.view)
+            an = a.toString(alias)
+            if a.visible:
+                attrList.append(an)
+            if a.orderBy:
+                orderList.append(an)
+            if a.groupBy:
+                groupList.append(an)
+            if a.condition and addWhere:
+                cstr = a.condition(an, cc)
+                whereList.append(cstr)
+                cc += 1
+        query += ', '.join(attrList)
+        query += '\n FROM '+self.tree.createString()
+        if whereList:
+            query += '\n WHERE '+ ' AND '.join(whereList)
+        if groupList:
+            query += '\n GROUP BY '+ ', '.join(groupList)
+        if orderList:
+            query += '\n ORDER BY '+ ', '.join(orderList)
+        return query         
+    
+    @property    
+    def source(self):
+        vs = '('+self._build(False)+')'
+        return vs
+        
+    def prepare(self):
+        vs = self._build(True)
+        return vs
+        
+    def attribute(self, name):
+        for a in self.attrs:
+            if a.visible and a.realName() == name:
+                return ViewAttr(a.realName(), self)
+        else:
+            raise Exception('Attribute '+name+' not found')
         
 class QueryBuilder(object):
     '''
@@ -135,45 +195,13 @@ class QueryBuilder(object):
             print groupSet
             print aggrSet
             raise Exception('aggregate and group by') 
-        
-    def _joins(self, addWhere=True):
-        self._validate()
-        query = 'select '
-        attrList = []
-        orderList = []
-        groupList = []
-        whereList = []
-        for a in self.attrs:        
-            alias = self.tree.getAlias(a.view)
-            an = a.toString(alias)
-            if a.visible:
-                attrList.append(an)
-            if a.orderBy:
-                orderList.append(an)
-            if a.groupBy:
-                groupList.append(an)
-            if a.condition and addWhere:
-                whereList.append(an+' '+str(a.condition))
-        query += ', '.join(attrList)
-        query += '\n from '+self.tree.createString()
-        if whereList:
-            query += '\n where '+ ' and '.join(whereList)
-        if groupList:
-            query += '\n group by '+ ', '.join(groupList)
-        if orderList:
-            query += '\n order by '+ ', '.join(orderList)
-        return query
-        
+            
     def build(self):
         '''
             Builds query string
         '''
-        return self._joins()
+        return self.createQuery().prepare()
         
-    def createView(self, name):
-        '''
-            Creates new view representing query, which might be used
-            in next queries.
-        '''
-        query = self._joins(False)
-        return View('('+query+')', name, [a.realName() for a in self.attrs if a.visible])
+    def createQuery(self, name='Query'):
+        self._validate()
+        return QueryView(name, self.attrs, self.tree)
