@@ -172,25 +172,65 @@ class View(IView):
         return self._src
 
 class Condition(object):
-    '''
-        Conditional expression used in WHERE clause
-    '''
-    
-    def __init__(self, fmt, value=None):
-        '''
-            Initialise expresion
-            params:
-                - fmt: format string used to create string used in WHERE clause
-                - value: (optional) value used in condition. If None placeholder '?' is used instead.
-        '''
-        self.fmt = fmt
-        self.value = value
+
+    def __init__(self, logFunc, operator):
+        self.logFunc = logFunc
+        self.operator = operator
+        self.next = None
         
-    def __str__(self):
-        if self.value:
-            return self.fmt % self.value
+    def toString(self, attribute, index=0):
+        base = ''
+        if index > 0:
+            base += self.logFunc
+        base += (' %s %s :param%d ' % (attribute, self.operator, index))
+        idx = index + 1
+        if self.next:
+            nc = self.next.toString(attribute, idx)
+            base += ' '+nc[0]
+            return (base, nc[1])
         else:
-            return self.fmt % '?'
+            return (base, idx)
+            
+    def paramNames(self, index):
+        arr = []
+        arr.append('param%d'%index)
+        idx = index + 1
+        nx = self.next
+        while nx:
+            arr.append('param%d'%idx)
+            nx = nx.next
+            idx += 1
+        return (arr, idx)
+
+def orCondition(operator):
+    return Condition('OR', operator)
+
+def andCondition(operator):
+    return Condition('AND', operator)
+    
+class ConditionChain(object):
+
+    def __init__(self):
+        self.cond = None
+    
+    def addOr(self, operator):
+        return self.add(orCondition(operator))
+        
+    def addAnd(self, operator):
+        return self.add(andCondition(operator))
+        
+    def add(self, condition):
+        if not self.cond:
+            self.cond = condition
+        else:
+            nx = self.cond
+            while nx.next:
+                nx = nx.next
+            nx.next = condition
+        return self
+        
+    def build(self):
+        return self.cond
             
 class Aggregate(object):
     '''

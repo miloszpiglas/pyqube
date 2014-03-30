@@ -1,5 +1,5 @@
-from views import View, Relation, AttrPair, Schema
-from pyqube import QueryBuilder, aggrCount, LE, GT
+from views import *
+from pyqube import *
 
 def main():
     booksView = View('books', 'Books', ['title', 'author', 'year', 'publisher', 'category'])
@@ -43,13 +43,16 @@ def main():
     categoryAttr = categoriesView.attribute('category_name').select(groupBy=True)
     subBuilder.select(categoryAttr)
     
-    yearAttr = booksView.attribute('year').select(condition=LE, orderBy=True, groupBy=True)
+    yearChain = ConditionChain()
+    yc = yearChain.addOr('=').addOr('=').addOr('=').build()
+    
+    yearAttr = booksView.attribute('year').select(condition=yc, orderBy=True, groupBy=True)
     subBuilder.select(yearAttr)
     
-    year2Attr = booksView.attribute('year').select(visible=False, condition=GT)
-    subBuilder.select(year2Attr)
+    #year2Attr = booksView.attribute('year').select(visible=False, condition=GT)
+    #subBuilder.select(year2Attr)
     
-    publisherIdAttr = booksView.attribute('publisher').select(groupBy=True)
+    publisherIdAttr = booksView.attribute('publisher').select(groupBy=True, condition=andCondition('LIKE '))
     subBuilder.select(publisherIdAttr)
     
     subView = subBuilder.createQuery('AuthorsView')
@@ -66,10 +69,16 @@ def main():
     schema.addView(subView, authorsPublisher)
  
     builder = QueryBuilder(schema)
-    builder.select(subView.attribute('Authors').select( condition=GT) )
+    builder.select(subView.attribute('Authors').select(condition=orCondition('=')) )
     builder.select(publishersView.attribute('name').select())
     
-    print builder.build()
+    prepSub = subView.prepare()
+    print prepSub[0]
+    print prepSub[1]
+    print
+    prepMain = builder.build()
+    print prepMain[0]
+    print prepMain[1]
     
     
 if __name__ == '__main__':

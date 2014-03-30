@@ -85,26 +85,7 @@ class Tree(object):
         '''
             Finds alias for view.
         '''
-        return self.viewNode[view].av.alias
-    
-def single(param, index, sign):    
-    cs = '%s %s :param%d' % (param, sign, index)
-    return cs
-    
-def EQ(param, index):
-    return single(param, index, '=')
-
-def GT(param, index):
-    return single(param, index, '>')
-    
-def GE(param, index):
-    return single(param, index, '>=')
-    
-def LT(param, index):
-    return single(param, index, '<')
-    
-def LE(param, index):
-    return single(param, index, '<=')     
+        return self.viewNode[view].av.alias    
     
 def avg(attr):
     return Aggregate('AVG', attr)
@@ -129,7 +110,7 @@ class QueryView(IView):
         orderList = []
         groupList = []
         whereList = []
-        cc = 1
+        cc = 0
         for a in self.attrs:        
             alias = self.tree.getAlias(a.view)
             an = a.toString(alias)
@@ -140,13 +121,13 @@ class QueryView(IView):
             if a.groupBy:
                 groupList.append(an)
             if a.condition and addWhere:
-                cstr = a.condition(an, cc)
-                whereList.append(cstr)
-                cc += 1
+                cstr = a.condition.toString(an, cc)
+                whereList.append(cstr[0])
+                cc = cstr[1]
         query += ', '.join(attrList)
         query += '\n FROM '+self.tree.createString()
         if whereList:
-            query += '\n WHERE '+ ' AND '.join(whereList)
+            query += '\n WHERE '+ ' '.join(whereList)
         if groupList:
             query += '\n GROUP BY '+ ', '.join(groupList)
         if orderList:
@@ -160,7 +141,15 @@ class QueryView(IView):
         
     def prepare(self):
         vs = self._build(True)
-        return vs
+        params = {}
+        cc = 0
+        for a in self.attrs:
+            if a.condition:
+                names = a.condition.paramNames(cc)
+                for n in names[0]:
+                    params[n] = a
+                cc = names[1]
+        return (vs, params)
         
     def attribute(self, name):
         for a in self.attrs:
