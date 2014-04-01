@@ -128,10 +128,19 @@ class IView(object):
         self.name = name
         
     def attribute(self, name):
+        '''
+           Finds attribute in view by passed name.
+           In default implementation this method raise exception
+        '''
         raise Exception('Not implemented')
     
     @property    
     def source(self):
+        '''
+            Source of this view - for example table name, or
+            query selecting values from table(s).
+            In default implemention this method raise an exception
+        '''
         raise Exception('Not implemented')
     
         
@@ -172,13 +181,30 @@ class View(IView):
         return self._src
 
 class Condition(object):
-
+    '''
+        Condition(s) for single attribute instance.
+        If one attribute has more than one condition,
+        they are all chainde in one object.
+    '''
     def __init__(self, logFunc, operator):
+        '''
+            Initailise constructor. Each instance might have
+            childrens - other conditions assigned to the same
+            attribute instance. 
+            It is suggested to use ConditionChain class to build
+            complex conditions.
+            params:
+                - logFunc - OR or AND, NOT AND, etc.
+                - operator - =, <, >=, ...
+        '''
         self.logFunc = logFunc
         self.operator = operator
-        self.next = None
+        self.next = None # next condition in chain
         
     def toString(self, attribute, index=0):
+        '''
+            Creates string used in query. 
+        '''
         base = ''
         if index > 0:
             base += self.logFunc
@@ -209,17 +235,28 @@ def andCondition(operator):
     return Condition('AND', operator)
     
 class ConditionChain(object):
-
+    '''
+        Conditions for attribute.
+    '''
     def __init__(self):
         self.cond = None
     
     def addOr(self, operator):
+        '''
+            Adds alternative condition to the chain.
+        '''
         return self.add(orCondition(operator))
         
     def addAnd(self, operator):
+        '''
+            Adds conjunction condition to the chain.
+        '''
         return self.add(andCondition(operator))
         
     def add(self, condition):
+        '''
+            Adds condition to the chain. 
+        '''
         if not self.cond:
             self.cond = condition
         else:

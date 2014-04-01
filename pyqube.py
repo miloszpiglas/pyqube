@@ -1,8 +1,28 @@
 # pyqube.py
 
 import collections
-
+import string
 from views import *   
+
+class AliasGen(object):
+
+    def __init__(self):
+        self._start = 1
+        self._letters = string.uppercase
+        self._len = len(self._letters)
+        
+    def next(self):
+        tmp = self._start
+        base = []
+        while tmp > 0:
+            idx = tmp % self._len
+            base.insert(0, self._letters[idx-1])
+            tmp = tmp / self._len
+        self._start += 1
+        print base
+        return ''.join(base)
+
+ALIAS_GEN = AliasGen()
 
 Alias = collections.namedtuple('Alias', ['view', 'alias'])
             
@@ -61,14 +81,14 @@ class Tree(object):
             If passed view has no related views in tree, exception is raised.
         '''
         if not self.root:
-            self.root = Node(Alias(view, 'a'+str(self.idx)))
+            self.root = Node(Alias(view, ALIAS_GEN.next()))
             self.viewNode[view] = self.root
         elif not self.viewNode.has_key(view):
             related = self.schema.relatedViews(view)
             for v in related:
                 if self.viewNode.has_key(v):
                     relation = self.schema.relation(v, view)
-                    nn = self.viewNode[v].addJoin(Alias(view, 'a'+str(self.idx)), relation)
+                    nn = self.viewNode[v].addJoin(Alias(view, ALIAS_GEN.next()), relation)
                     self.viewNode[view] = nn
                     break
             else:
@@ -98,7 +118,10 @@ def aggrCount(attr):
     
    
 class QueryView(IView):
-
+    '''
+    Query represented as view, which might be used in same fashion as table view. 
+    If view is used as subquery, condition clause is not used.
+    '''
     def __init__(self, name, attrs, tree):
         IView.__init__(self, name)
         self.tree = tree
@@ -136,10 +159,20 @@ class QueryView(IView):
     
     @property    
     def source(self):
+        '''
+        This methods builds "source" of view - query without
+        conditional clause.
+        '''
         vs = '('+self._build(False)+')'
         return vs
         
     def prepare(self):
+        '''
+        Prepares query for execution. All query parameters have
+        assigned place holders, which might be used to set values.
+        Method returns pair (query string, map of placeholders 
+        and names of attributes)
+        '''
         vs = self._build(True)
         params = {}
         cc = 0
