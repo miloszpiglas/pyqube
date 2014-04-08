@@ -190,6 +190,9 @@ class QueryView(IView):
                 return ViewAttr(a.realName(), self)
         else:
             raise Exception('Attribute '+name+' not found')
+            
+    def viewAttrs(self):
+        return [a.realName() for a in self.attrs if a.visible]
         
 class QueryBuilder(object):
     '''
