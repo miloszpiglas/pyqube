@@ -34,6 +34,17 @@ class Schema(object):
         '''
         return self.views[view]
         
+    def viewByName(self, name):
+        for v in self.views.iterkeys():
+            if v.name == name:
+                return v
+        return None
+        
+    def attrByName(self, fullName):
+        pair = fullName.split('.')
+        view = self.viewByName(pair[0])
+        return view.attribute(pair[1])
+        
     def relation(self, view, related):
         '''
             Finds object representing relation between two views.
@@ -157,7 +168,6 @@ class IView(object):
         
     def viewAttrs(self):
         raise Exception('Not implemented')
-    
         
 class View(IView):
     '''
