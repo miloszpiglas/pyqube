@@ -107,15 +107,6 @@ class Tree(object):
         '''
         return self.viewNode[view].av.alias    
     
-def avg(attr):
-    return Aggregate('AVG', attr)
-    
-def aggrSum(attr):
-    return Aggreget('SUM', attr)
-    
-def aggrCount(attr):
-    return Aggregate('COUNT', attr)
-    
    
 class QueryView(IView):
     '''
@@ -216,9 +207,6 @@ class QueryBuilder(object):
         aggrSet = frozenset([ a for a in self.attrs if a.aggregate and a.visible])
         visibleSet = frozenset([a for a in self.attrs if a.visible])
         if (groupSet or aggrSet) and not (aggrSet.isdisjoint(groupSet) and visibleSet == (groupSet | aggrSet)):
-            print visibleSet
-            print groupSet
-            print aggrSet
             raise Exception('aggregate and group by') 
             
     def build(self):
