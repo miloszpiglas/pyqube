@@ -19,7 +19,6 @@ class AliasGen(object):
             base.insert(0, self._letters[idx-1])
             tmp = tmp / self._len
         self._start += 1
-        print base
         return ''.join(base)
 
 ALIAS_GEN = AliasGen()
@@ -183,7 +182,7 @@ class QueryView(IView):
             raise Exception('Attribute '+name+' not found')
             
     def viewAttrs(self):
-        return [a.realName() for a in self.attrs if a.visible]
+        return [a for a in self.attrs if a.visible]
         
 class QueryBuilder(object):
     '''

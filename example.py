@@ -69,8 +69,8 @@ def main():
     schema.addView(subView, authorsPublisher)
     sa = schema.attributes()
     
-    print sa[0], schema.attrByName(sa[0]).view.source
-    print sa[-1], schema.attrByName(sa[-1]).view.source
+    print sa[0], sa[0].view.source
+    print sa[-1], sa[-1].view.source
     
     builder = QueryBuilder(schema)
     builder.select(subView.attribute('Authors').select(condition=orCondition('=')) )

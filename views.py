@@ -62,9 +62,8 @@ class Schema(object):
     def attributes(self):
         attrs = []
         for v in self.views.iterkeys():
-            for a in v.viewAttrs():
-                attrs.append(v.name+'.'+a)
-        attrs.sort()
+            attrs.extend(v.viewAttrs())
+        attrs.sort(cmp=lambda x,y: cmp(x.view.name+'.'+x.realName(), y.view.name+'.'+y.realName()))
         return attrs
         
 class ViewAttr(object):
@@ -104,6 +103,9 @@ class ViewAttr(object):
      
     def realName(self):
         return self.name
+        
+    def fullName(self):
+        return self.view.name+'.'+self.realName()
         
         
 class SelectAttr(ViewAttr):
@@ -189,7 +191,7 @@ class View(IView):
         return self._src
         
     def viewAttrs(self):
-        return [a.realName() for (n, a) in self.attrs.iteritems()]
+        return self.attrs.itervalues()
 
 class Condition(object):
     '''
