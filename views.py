@@ -43,7 +43,10 @@ class Schema(object):
     def attrByName(self, fullName):
         pair = fullName.split('.')
         view = self.viewByName(pair[0])
-        return view.attribute(pair[1])
+        if view:
+            return view.attribute(pair[1])
+        return
+            None
         
     def relation(self, view, related):
         '''
