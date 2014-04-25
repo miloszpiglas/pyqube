@@ -45,8 +45,7 @@ class Schema(object):
         view = self.viewByName(pair[0])
         if view:
             return view.attribute(pair[1])
-        return
-            None
+        return None
         
     def relation(self, view, related):
         '''
