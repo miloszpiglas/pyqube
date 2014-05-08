@@ -24,7 +24,7 @@ class AliasGen(object):
 ALIAS_GEN = AliasGen()
 
 Alias = collections.namedtuple('Alias', ['view', 'alias'])
-            
+Query = collections.namedtuple('Query', ['statement', 'params', 'attributes'])           
         
 class Node(object):
     '''
@@ -159,9 +159,9 @@ class QueryView(IView):
     def prepare(self):
         '''
         Prepares query for execution. All query parameters have
-        assigned place holders, which might be used to set values.
-        Method returns pair (query string, map of placeholders 
-        and names of attributes)
+        assigned placeholders, which might be used to set values.
+        Method returns tuple (query string, map of placeholders 
+        and names of attributes, selected attributes)
         '''
         vs = self._build(True)
         params = {}
@@ -172,7 +172,7 @@ class QueryView(IView):
                 for n in names[0]:
                     params[n] = a
                 cc = names[1]
-        return (vs, params)
+        return Query(vs, params, [a for a in self.attrs if a.visible])
         
     def attribute(self, name):
         for a in self.attrs:

@@ -36,6 +36,8 @@ def main():
     schema.addView(categoriesView, bookCategory)
     schema.addView(citiesView, publisherCity)
     
+    schema.attrByName('Categories.category_name').userName = 'Category name'
+    
     subBuilder = QueryBuilder(schema)
     authorAttr = booksView.attribute('author').select(aggregate=lambda a: 'count('+a+')', altName='Authors')
     subBuilder.select(authorAttr)
@@ -77,12 +79,14 @@ def main():
     builder.select(publishersView.attribute('name').select())
     
     prepSub = subView.prepare()
-    print prepSub[0]
-    print prepSub[1]
+    print prepSub.statement
+    print prepSub.params
+    print prepSub.attributes
     print
     prepMain = builder.build()
-    print prepMain[0]
-    print prepMain[1]
+    print prepMain.statement
+    print prepMain.params
+    print prepMain.attributes
     
     
 if __name__ == '__main__':

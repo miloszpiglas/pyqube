@@ -44,7 +44,9 @@ class Schema(object):
         pair = fullName.split('.')
         view = self.viewByName(pair[0])
         if view:
-            return view.attribute(pair[1])
+            for attr in view.viewAttrs():
+                if attr.realName() == pair[1]:
+                    return attr
         return None
         
     def relation(self, view, related):
@@ -73,9 +75,10 @@ class ViewAttr(object):
         Attribute of view. This class is used to define views in database
         schema. It is cloned for each specific query.
     '''
-    def __init__(self, name, view):
+    def __init__(self, name, view, userName=None):
         self.name = name
         self.view = view 
+        self.userName = userName
         
     def select(self, visible=True, orderBy=False, groupBy=False, condition=None, aggregate=None, altName=None):
         '''
@@ -88,7 +91,7 @@ class ViewAttr(object):
                 - aggregate: aggregation function
                 - altName: alternative (alias) name for attribute
         '''
-        sa = SelectAttr(self.name, self.view)
+        sa = SelectAttr(self.name, self.view, self.userName)
         sa.visible = visible
         sa.orderBy = orderBy
         sa.groupBy = groupBy
@@ -104,6 +107,8 @@ class ViewAttr(object):
         return self._prepareStr(alias)
      
     def realName(self):
+        if self.userName:
+            return self.userName
         return self.name
         
     def fullName(self):
@@ -115,8 +120,8 @@ class SelectAttr(ViewAttr):
         Cloned version of view attributed. It represents properties of view attribute
         specific for builded query.
     '''
-    def __init__(self, name, view):
-        ViewAttr.__init__(self, name, view)
+    def __init__(self, name, view, userName=None):
+        ViewAttr.__init__(self, name, view, userName)
         self.visible = True
         self.orderBy = False
         self.groupBy = False
@@ -135,7 +140,7 @@ class SelectAttr(ViewAttr):
     def realName(self):
         if self.altName:
             return self.altName
-        return self.name
+        return ViewAttr.realName(self)
         
 
 class IView(object):
