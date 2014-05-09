@@ -45,6 +45,9 @@ def main():
     categoryAttr = categoriesView.attribute('category_name').select(groupBy=True)
     subBuilder.select(categoryAttr)
     
+    publisherIdAttr = booksView.attribute('publisher').select(groupBy=True, condition=andCondition('LIKE '))
+    subBuilder.select(publisherIdAttr)
+    
     yearChain = ConditionChain()
     yc = yearChain.addOr('=').addOr('=').addOr('=').build()
     
@@ -54,8 +57,6 @@ def main():
     #year2Attr = booksView.attribute('year').select(visible=False, condition=GT)
     #subBuilder.select(year2Attr)
     
-    publisherIdAttr = booksView.attribute('publisher').select(groupBy=True, condition=andCondition('LIKE '))
-    subBuilder.select(publisherIdAttr)
     
     subView = subBuilder.createQuery('AuthorsView')
     
@@ -76,7 +77,7 @@ def main():
     
     builder = QueryBuilder(schema)
     builder.select(subView.attribute('Authors').select(condition=orCondition('=')) )
-    builder.select(publishersView.attribute('name').select())
+    builder.select(publishersView.attribute('name').select(), outerJoin=True)
     
     prepSub = subView.prepare()
     print prepSub.statement

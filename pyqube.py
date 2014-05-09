@@ -32,7 +32,7 @@ class Node(object):
         parent and children. 
     '''
     
-    def __init__(self, aliasView, relation=None):
+    def __init__(self, aliasView, relation=None, joinStr='JOIN'):
         '''
             Initialise node. 
             params:
@@ -42,12 +42,15 @@ class Node(object):
         self.av = aliasView
         self.children = []
         self.relation = relation
+        self.joinStr = joinStr
         
-    def addJoin(self, aliasView, relation):
+    def addJoin(self, aliasView, relation, outerJoin=False):
         '''
             Adds join to this node. 
         '''
         nn = Node(aliasView, relation)
+        if outerJoin:
+            nn.joinStr = 'LEFT OUTER JOIN'
         self.children.append(nn)
         return nn
     
@@ -56,7 +59,7 @@ class Node(object):
         if self.relation:
             s += ' on ' + self.relation.toString(parentAlias, self.av)
         for ch in self.children:
-            s += '\n join ' + ch.toString(self.av)
+            s += '\n '+ch.joinStr+' '+ ch.toString(self.av)
         return s
             
 class Tree(object):
@@ -72,7 +75,7 @@ class Tree(object):
         self.idx = 0
         self.schema = schema
     
-    def addJoin(self, view):
+    def addJoin(self, view, outerJoin=False):
         '''
             Add view to join. If it is first view added to tree, it becomes
             root node. If tree has already root, proper view is find for passed one
@@ -87,7 +90,7 @@ class Tree(object):
             for v in related:
                 if self.viewNode.has_key(v):
                     relation = self.schema.relation(v, view)
-                    nn = self.viewNode[v].addJoin(Alias(view, ALIAS_GEN.next()), relation)
+                    nn = self.viewNode[v].addJoin(Alias(view, ALIAS_GEN.next()), relation, outerJoin)
                     self.viewNode[view] = nn
                     break
             else:
@@ -193,12 +196,12 @@ class QueryBuilder(object):
         self.attrs = []
         self.tree = Tree(schema)
         
-    def select(self, selectAttr):
+    def select(self, selectAttr, outerJoin=False):
         '''
             Add attribute to selected list. Also prepares
             JOINs between views.
         '''
-        self.tree.addJoin(selectAttr.view)
+        self.tree.addJoin(selectAttr.view, outerJoin)
         self.attrs.append(selectAttr)
         
     def _validate(self):
