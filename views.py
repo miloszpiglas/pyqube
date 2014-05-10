@@ -167,6 +167,9 @@ class IView(object):
     def viewAttrs(self):
         raise Exception('Not implemented')
         
+    def __getitem__(self, key):
+        return self.attribute(key)
+        
 class View(IView):
     '''
         Represents table in database or predefined query,

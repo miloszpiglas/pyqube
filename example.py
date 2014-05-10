@@ -9,24 +9,24 @@ def main():
     
     bookPublisher = Relation(
                             [AttrPair
-                                (booksView.attribute('publisher'), 
-                                            publishersView.attribute('id')
+                                (booksView['publisher'], 
+                                            publishersView['id']
                                 )
                             ]
                             )
     publisherCity = Relation(
                             [AttrPair
                                 (
-                                    publishersView.attribute('city'), 
-                                    citiesView.attribute('id')
+                                    publishersView['city'], 
+                                    citiesView['id']
                                 )
                             ]
                             )
     bookCategory = Relation(
                            [AttrPair
                                 (
-                                    booksView.attribute('category'), 
-                                    categoriesView.attribute('id')
+                                    booksView['category'], 
+                                    categoriesView['id']
                                 )
                             ]
                             )
@@ -39,20 +39,20 @@ def main():
     schema.attrByName('Categories.category_name').userName = 'Category name'
     
     subBuilder = QueryBuilder(schema)
-    authorAttr = booksView.attribute('author').select(aggregate=lambda a: 'count('+a+')', altName='Authors')
-    subBuilder.select(authorAttr)
+    authorAttr = booksView['author'].select(aggregate=lambda a: 'count('+a+')', altName='Authors')
+    subBuilder.add(authorAttr)
     
-    categoryAttr = categoriesView.attribute('category_name').select(groupBy=True)
-    subBuilder.select(categoryAttr)
+    categoryAttr = categoriesView['category_name'].select(groupBy=True)
+    subBuilder.add(categoryAttr)
     
-    publisherIdAttr = booksView.attribute('publisher').select(groupBy=True, condition=andCondition('LIKE '))
-    subBuilder.select(publisherIdAttr)
+    publisherIdAttr = booksView['publisher'].select(groupBy=True, condition=andCondition('LIKE '))
+    subBuilder.add(publisherIdAttr)
     
     yearChain = ConditionChain()
     yc = yearChain.addOr('=').addOr('=').addOr('=').build()
     
-    yearAttr = booksView.attribute('year').select(condition=yc, orderBy=True, groupBy=True)
-    subBuilder.select(yearAttr)
+    yearAttr = booksView['year'].select(condition=yc, orderBy=True, groupBy=True)
+    subBuilder.add(yearAttr)
     
     #year2Attr = booksView.attribute('year').select(visible=False, condition=GT)
     #subBuilder.select(year2Attr)
@@ -63,8 +63,8 @@ def main():
     authorsPublisher = Relation(
                                 [AttrPair
                                     (
-                                        subView.attribute('publisher'),
-                                        publishersView.attribute('id')
+                                        subView['publisher'],
+                                        publishersView['id']
                                     )
                                 ]
                                 )
@@ -76,8 +76,8 @@ def main():
     print sa[-1], sa[-1].view.source
     
     builder = QueryBuilder(schema)
-    builder.select(subView.attribute('Authors').select(condition=orCondition('=')) )
-    builder.select(publishersView.attribute('name').select(), outerJoin=True)
+    builder.add(subView['Authors'].select(condition=orCondition('=')) )
+    builder.add(publishersView['name'].select(), outerJoin=True)
     
     prepSub = subView.prepare()
     print prepSub.statement

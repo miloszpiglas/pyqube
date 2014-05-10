@@ -196,7 +196,7 @@ class QueryBuilder(object):
         self.attrs = []
         self.tree = Tree(schema)
         
-    def select(self, selectAttr, outerJoin=False):
+    def add(self, selectAttr, outerJoin=False):
         '''
             Add attribute to selected list. Also prepares
             JOINs between views.
