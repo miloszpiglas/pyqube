@@ -208,8 +208,14 @@ class QueryBuilder(object):
         groupSet = frozenset([ a for a in self.attrs if a.groupBy and a.visible])
         aggrSet = frozenset([ a for a in self.attrs if a.aggregate and a.visible])
         visibleSet = frozenset([a for a in self.attrs if a.visible])
-        if (groupSet or aggrSet) and not (aggrSet.isdisjoint(groupSet) and visibleSet == (groupSet | aggrSet)):
-            raise Exception('aggregate and group by') 
+        if not aggrSet and not groupSet and visibleSet:
+            return
+        elif aggrSet and not groupSet and visibleSet == aggrSet:
+            return
+        elif aggrSet and groupSet and visibleSet == groupSet | aggrSet and groupSet.isdisjoint(aggrSet):
+            return
+        else:
+            raise Exception('aggregate and group by')
             
     def build(self):
         '''
