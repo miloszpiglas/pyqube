@@ -142,6 +142,11 @@ class SelectAttr(ViewAttr):
             return self.altName
         return ViewAttr.realName(self)
         
+    def queryName(self, alias):
+        if self.altName:
+            return self.altName
+        return self.toString(alias)
+        
 
 class IView(object):
 

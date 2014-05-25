@@ -39,10 +39,10 @@ def main():
     schema.attrByName('Categories.category_name').userName = 'Category name'
     
     subBuilder = QueryBuilder(schema)
-    authorAttr = booksView['author'].select(aggregate=lambda a: 'count('+a+')', altName='Authors')
+    authorAttr = booksView['author'].select(aggregate=lambda a: 'count('+a+')', altName='Authors', orderBy=True)
     subBuilder.add(authorAttr)
     
-    categoryAttr = categoriesView['category_name'].select(groupBy=True)
+    categoryAttr = categoriesView['category_name'].select(groupBy=True, orderBy=True)
     subBuilder.add(categoryAttr)
     
     publisherIdAttr = booksView['publisher'].select(groupBy=True, condition=andCondition('LIKE '))

@@ -129,15 +129,15 @@ class QueryView(IView):
         cc = 0
         for a in self.attrs:        
             alias = self.tree.getAlias(a.view)
-            an = a.toString(alias)
+            qn = a.queryName(alias)
             if a.visible:
-                attrList.append(an)
+                attrList.append(a.toString(alias))
             if a.orderBy:
-                orderList.append(an)
+                orderList.append(qn)
             if a.groupBy:
-                groupList.append(an)
+                groupList.append(qn)
             if a.condition and addWhere:
-                cstr = a.condition.toString(an, cc)
+                cstr = a.condition.toString(qn, cc)
                 whereList.append(cstr[0])
                 cc = cstr[1]
         query += ', '.join(attrList)
