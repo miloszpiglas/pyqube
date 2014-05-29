@@ -1,4 +1,19 @@
-# pyqube.py
+# -*- coding: utf-8 -*-
+
+#    Copyright (C) 2014 Milosz Piglas <milosz@archeocs.com>
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import collections
 import string
@@ -130,14 +145,15 @@ class QueryView(IView):
         for a in self.attrs:        
             alias = self.tree.getAlias(a.view)
             qn = a.queryName(alias)
+            an = a.toString(alias)
             if a.visible:
-                attrList.append(a.toString(alias))
+                attrList.append(an)
             if a.orderBy:
                 orderList.append(qn)
             if a.groupBy:
                 groupList.append(qn)
             if a.condition and addWhere:
-                cstr = a.condition.toString(qn, cc)
+                cstr = a.condition.toString(a.condName(alias), cc)
                 whereList.append(cstr[0])
                 cc = cstr[1]
         query += ', '.join(attrList)
